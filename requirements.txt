@@ -1,0 +1,10 @@
+yfinance
+langchain-pinecone
+openai
+python-dotenv
+langchain-community
+sentence-transformers
+pinecone-client
+numpy
+requests
+scikit-learn 
