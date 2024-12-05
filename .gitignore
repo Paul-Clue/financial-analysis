@@ -1,0 +1,4 @@
+.env
+company_tickers.json
+successful_tickers.txt
+unsuccessful_tickers.txt
