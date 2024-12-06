@@ -7,4 +7,5 @@ sentence-transformers
 pinecone-client
 numpy
 requests
-scikit-learn 
+scikit-learn
+streamlit
