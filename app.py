@@ -4,7 +4,6 @@ import json
 import yfinance as yf
 import concurrent.futures
 from langchain_community.embeddings import HuggingFaceEmbeddings
-# from google.colab import userdata
 from langchain.schema import Document
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
@@ -27,7 +26,6 @@ vectorstore = PineconeVectorStore(index_name=index_name, embedding=hf_embeddings
 
 pc = Pinecone(api_key=pinecone_api_key)
 
-# Connect to your Pinecone index
 pinecone_index = pc.Index(index_name)
 
 groq_api_key = os.getenv('GROQ_API_KEY')
@@ -54,46 +52,46 @@ def get_stock_info_all(symbol: str) -> dict:
 
     return stock_info
 
-# query = "apple"
+def format_filter_conditions(filter_conditions):
+    if not filter_conditions:
+        return ""
+        
+    formatted_filters = []
+    
+    for key, value in filter_conditions.items():
+        if isinstance(value, dict):
+            # Handle operators ($gte, $lte, etc.)
+            for op, val in value.items():
+                operator_map = {
+                    "$gte": "greater than or equal to",
+                    "$lte": "less than or equal to",
+                    "$gt": "greater than",
+                    "$lt": "less than",
+                    "$eq": "equals",
+                    "$in": "in",
+                }
+                op_text = operator_map.get(op, op)
+                formatted_filters.append(f"{key} is {op_text} {val}")
+        else:
+            # Handle simple key-value pairs
+            formatted_filters.append(f"{key}: {value}")
+    
+    return ", ".join(formatted_filters)
 
-# system_prompt = f"""You are an expert in the field of embeddings, cosine similarity search and vector databases. Given the following query for a vector database with a pinecone index that stock descriptions are stored in, please provide a better query that will return more relevant results:
 
-# Query: {query}
-# """
-
-# llm_response = client.chat.completions.create(
-#     model="llama-3.1-70b-versatile",
-#     messages=[
-#         {"role": "system", "content": system_prompt},
-#         {"role": "user", "content": query}
-#     ]
-# )
-
-# response = llm_response.choices[0].message.content
-# print("RESPONSE", response)
-
-
-# raw_query_embedding = get_huggingface_embeddings(query)
-
-# top_matches = pinecone_index.query(vector=raw_query_embedding.tolist(), top_k=10, include_metadata=True, namespace=namespace)
-
-# print("Checking matches for GOOGL:")
-# for match in top_matches['matches']:
-#     ticker = match['metadata'].get('Ticker')
-#     score = match['score']
-#     print(f"Ticker: {ticker}, Score: {score}")
-#     if ticker == 'GOOGL':
-#         print("\nFound GOOGL!")
-#         print("Full metadata:", match['metadata'])
-# print("top_matches", top_matches)
 def HandleQuery(query, filter_conditions):
+    filter_conditions_string = format_filter_conditions(filter_conditions)
+    # print("filter_conditions", filter_conditions)
+    
+
+    # print("filter_conditions_string", filter_conditions_string)
     raw_query_embedding = get_huggingface_embeddings(query)
 
     top_matches = pinecone_index.query(vector=raw_query_embedding.tolist(), top_k=10, include_metadata=True, namespace=namespace,filter=filter_conditions if filter_conditions else None)
 
     contexts = [item['metadata']['text'] for item in top_matches['matches']]
 
-    augmented_query = "<CONTEXT>\n" + "\n\n-------\n\n".join(contexts[ : 10]) + "\n-------\n</CONTEXT>\n\n\n\nMY QUESTION:\n" + query
+    augmented_query = "<CONTEXT>\n" + "\n\n-------\n\n".join(contexts[ : 10]) + "\n-------\n</CONTEXT>\n\n\n\nMY QUESTION:\n" + query + filter_conditions_string
 
     system_prompt = f"""You are an expert at providing answers about stocks. Please answer my question provided.
 
@@ -108,6 +106,8 @@ def HandleQuery(query, filter_conditions):
     Please provide the answer in a markdown format.
 
     Please be consistent in the markdown format for all of your answers.
+
+    If no question is provided, please provide a list of all of the stocks that match the filters and their information.
     """
 
     llm_response = client.chat.completions.create(
@@ -121,16 +121,9 @@ def HandleQuery(query, filter_conditions):
     response = llm_response.choices[0].message.content
     return response
 
-# print("RESPONSE", response)
-# print("something")
-
-# query = "Which stocks are in the consumer staples sector?"
-
-# Title
 st.title('Stock Analysis')
 st.warning("Keep in mind that more detailed your query and filters are, the more relevant and accurate the results will be.")
 
-# Add a text input for stock symbol
 st.write("You can use the following filters to narrow down the results:")
 st.write("Market Cap and Volume will return results that are greater than or equal to the value you enter.")
 industry = st.text_input('Industry:',)
@@ -152,37 +145,22 @@ st.write("Ask general questions about stocks:")
 query = st.text_input('Ask About Stocks:',)
 
 filter = {
-    "$and": [
-        {"industry": industry},
-        {"sector": sector},
-        {"marketCap": {"$gte": market_cap}},  # Greater than or equal to
-        {"volume": {"$gte": volume}}  # In list
-    ]
+    "industry": "cellphones",
+    "sector": "technology",
+    "marketCap": {"$gte": 0},
+    "volume": {"$gte": 0}
 }
 
-print("filter", filter)
-
-
-# Add a button
 if st.button('Get Stock Info'):
     st.write(f'Getting info for {query}...')
     response = HandleQuery(query, filter)
     
-    # Display the response
     st.write("### Response:")
     st.write(response)
     
-    # Optional: Add formatting
-    st.markdown("---")  # Add a divider
     
-    # You can also add expandable sections
-    # with st.expander("Show Raw Response"):
-    #     st.code(response)  # Shows response in a code block
-        
-    # Add error handling
+    st.markdown("---")
+    
     if not response:
         st.error("No information found for this query.")
     
-# Add a sidebar
-# st.sidebar.title('Options')
-# show_charts = st.sidebar.checkbox('Show Charts')
