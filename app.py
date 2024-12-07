@@ -1,6 +1,5 @@
 from langchain_pinecone import PineconeVectorStore
 from openai import OpenAI
-import dotenv
 import json
 import yfinance as yf
 import concurrent.futures
@@ -42,6 +41,19 @@ def get_huggingface_embeddings(text, model_name="sentence-transformers/all-mpnet
     model = SentenceTransformer(model_name)
     return model.encode(text)
 
+def get_stock_info_all(symbol: str) -> dict:
+    headers = {
+        'Authorization': f'Bearer {os.getenv("YAHOO_ACCESS_TOKEN")}'
+    }
+    session = requests.Session()
+    session.headers.update(headers)
+    
+    data = yf.Ticker(symbol, session=session)
+
+    stock_info = data.info
+
+    return stock_info
+
 # query = "apple"
 
 # system_prompt = f"""You are an expert in the field of embeddings, cosine similarity search and vector databases. Given the following query for a vector database with a pinecone index that stock descriptions are stored in, please provide a better query that will return more relevant results:
@@ -74,10 +86,10 @@ def get_huggingface_embeddings(text, model_name="sentence-transformers/all-mpnet
 #         print("\nFound GOOGL!")
 #         print("Full metadata:", match['metadata'])
 # print("top_matches", top_matches)
-def HandleQuery(query):
+def HandleQuery(query, filter_conditions):
     raw_query_embedding = get_huggingface_embeddings(query)
 
-    top_matches = pinecone_index.query(vector=raw_query_embedding.tolist(), top_k=10, include_metadata=True, namespace=namespace)
+    top_matches = pinecone_index.query(vector=raw_query_embedding.tolist(), top_k=10, include_metadata=True, namespace=namespace,filter=filter_conditions if filter_conditions else None)
 
     contexts = [item['metadata']['text'] for item in top_matches['matches']]
 
@@ -115,17 +127,46 @@ def HandleQuery(query):
 # query = "Which stocks are in the consumer staples sector?"
 
 # Title
-st.title('My Stock Analysis App')
+st.title('Stock Analysis')
+st.warning("Keep in mind that more detailed your query and filters are, the more relevant and accurate the results will be.")
 
 # Add a text input for stock symbol
-# st.write("### Response:")
+st.write("You can use the following filters to narrow down the results:")
+st.write("Market Cap and Volume will return results that are greater than or equal to the value you enter.")
+industry = st.text_input('Industry:',)
+sector = st.text_input('Sector:',)
+market_cap = st.number_input(
+    'Market Cap:',
+    min_value=0,
+    max_value=1000000,
+    step=1
+)
+volume = st.number_input(
+    'Volume:',
+    min_value=0,
+    max_value=1000000,
+    step=1
+)
+
+st.write("Ask general questions about stocks:")
 query = st.text_input('Ask About Stocks:',)
+
+filter = {
+    "$and": [
+        {"industry": industry},
+        {"sector": sector},
+        {"marketCap": {"$gte": market_cap}},  # Greater than or equal to
+        {"volume": {"$gte": volume}}  # In list
+    ]
+}
+
+print("filter", filter)
 
 
 # Add a button
 if st.button('Get Stock Info'):
     st.write(f'Getting info for {query}...')
-    response = HandleQuery(query)
+    response = HandleQuery(query, filter)
     
     # Display the response
     st.write("### Response:")
@@ -135,13 +176,13 @@ if st.button('Get Stock Info'):
     st.markdown("---")  # Add a divider
     
     # You can also add expandable sections
-    with st.expander("Show Raw Response"):
-        st.code(response)  # Shows response in a code block
+    # with st.expander("Show Raw Response"):
+    #     st.code(response)  # Shows response in a code block
         
     # Add error handling
     if not response:
         st.error("No information found for this query.")
     
 # Add a sidebar
-st.sidebar.title('Options')
-show_charts = st.sidebar.checkbox('Show Charts')
+# st.sidebar.title('Options')
+# show_charts = st.sidebar.checkbox('Show Charts')
