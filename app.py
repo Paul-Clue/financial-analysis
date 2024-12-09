@@ -60,7 +60,7 @@ def format_filter_conditions(filter_conditions):
     
     for key, value in filter_conditions.items():
         if isinstance(value, dict):
-            # Handle operators ($gte, $lte, etc.)
+           
             for op, val in value.items():
                 operator_map = {
                     "$gte": "greater than or equal to",
@@ -73,7 +73,7 @@ def format_filter_conditions(filter_conditions):
                 op_text = operator_map.get(op, op)
                 formatted_filters.append(f"{key} is {op_text} {val}")
         else:
-            # Handle simple key-value pairs
+            
             formatted_filters.append(f"{key}: {value}")
     
     return ", ".join(formatted_filters)
@@ -81,10 +81,7 @@ def format_filter_conditions(filter_conditions):
 
 def HandleQuery(query, filter_conditions):
     filter_conditions_string = format_filter_conditions(filter_conditions)
-    # print("filter_conditions", filter_conditions)
-    
-
-    # print("filter_conditions_string", filter_conditions_string)
+   
     raw_query_embedding = get_huggingface_embeddings(query)
 
     top_matches = pinecone_index.query(vector=raw_query_embedding.tolist(), top_k=10, include_metadata=True, namespace=namespace,filter=filter_conditions if filter_conditions else None)
@@ -145,10 +142,10 @@ st.write("Ask general questions about stocks:")
 query = st.text_input('Ask About Stocks:',)
 
 filter = {
-    "industry": "cellphones",
-    "sector": "technology",
-    "marketCap": {"$gte": 0},
-    "volume": {"$gte": 0}
+    "industry": industry,
+    "sector": sector,
+    "marketCap": {"$gte": market_cap},
+    "volume": {"$gte": volume}
 }
 
 if st.button('Get Stock Info'):
